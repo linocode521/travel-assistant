@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智能旅行助手 · 行程编辑</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="base.css">
+<link href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@400;500;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      onerror="window.__LEAFLET_CSS_FAILED=true">
+<style>
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Wayfind (by request) · redesign: restyle
+ * nav: kept · signature: kept (地图 + 编号路线) · states: hover/focus/selected/locked/loading · wayfind: platform
+ * axes: light/mono/cool · posture: committed · contrast: pass · v2.0.0
+ * waive 64: Chivo Mono 无中文字形，中文回退系统字族；数字与拉丁保持等宽 */
+/* ============================================================================
+   设计系统：编辑部级城市指南
+   纸 / 宋体 / 发丝线 / 朱砂一点。所有颜色与字体都必须走 token，正文不出现裸色值。
+   ========================================================================== */
+:root{
+  /* Hallmark · Wayfind 色板映射（原 token 名保留，值指向主题） */
+  --paper:var(--color-paper);
+  --paper-raised:var(--color-paper-3);
+  --paper-sunk:var(--color-paper-2);
+  --ink:var(--color-ink);
+  --ink-2:var(--color-ink-2);
+  --muted:var(--color-muted);
+  --faint:oklch(58% 0.014 260);          /* 3.4:1，仅装饰 */
+
+  --rule:var(--color-rule);
+  --rule-strong:var(--color-ink-rule);
+
+  /* 钴蓝＝活的东西（当前站、主操作）；琥珀＝墨底上的数字 */
+  --accent:var(--color-accent);
+  --accent-deep:oklch(42% 0.20 264);
+  --accent-wash:oklch(93% 0.04 264);
+
+  --warn:var(--color-accent-2);
+  --warn-wash:oklch(95% 0.05 82);
+  --ok:var(--color-success);
+  --color-scrim:rgba(15,18,24,.94);   /* 灯箱遮罩 */
+
+  /* 全等宽：Chivo Mono 承担拉丁与数字，中文回退到系统等宽感字族 */
+  --mono:"Chivo Mono","Sarasa Mono SC","Microsoft YaHei",ui-monospace,monospace;
+  --sans:var(--mono);
+  --serif:var(--mono);
+
+  --gutter:28px;
+  --measure:1680px;
+  --line:2px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%;overflow-x:clip}
+body{
+  margin:0;
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.6;
+  color:var(--ink);
+  background:var(--paper);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+button{font-family:inherit;color:inherit}
+a{color:var(--accent);text-decoration:none;border-bottom:var(--line) solid var(--rule-strong)}
+a:hover{border-bottom-color:var(--accent)}
+::selection{background:var(--accent-wash);color:var(--ink)}
+
+/* 焦点必须立即可见，不要延迟动画 */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- 报头 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:900;
+  display:flex;align-items:baseline;gap:var(--space-md);
+  padding:14px var(--gutter) 13px;
+  background:color-mix(in srgb,var(--paper) 92%,transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:var(--line) solid var(--ink);
+}
+.brand{display:flex;align-items:baseline;gap:14px;min-width:0}
+.logo{
+  width:12px;height:12px;flex:none;display:block;background:var(--color-accent);border:0;border-radius:0;
+  border:var(--line) solid var(--ink);border-radius:50%;
+  font-family:var(--serif);font-size:13px;transform:translateY(4px);
+}
+.brand h1{
+  font-family:var(--serif);font-size:19px;font-weight:600;letter-spacing:.04em;
+  margin:0;white-space:nowrap;
+}
+.brand p{
+  margin:0;font-size:11.5px;color:var(--muted);white-space:nowrap;letter-spacing:.02em;
+  padding-left:14px;border-left:var(--line) solid var(--rule);
+}
+.spacer{flex:1}
+
+/* 状态改成纯文字，不用胶囊和装饰点 */
+.pill{
+  display:inline-flex;align-items:center;gap:7px;margin-right:6px;
+  font-size:11.5px;color:var(--muted);white-space:nowrap;letter-spacing:.02em;
+}
+.pill .dot{display:none}
+.pill.warn{color:var(--warn)}
+.pill.bad{color:var(--accent)}
+
+/* 按钮：直角、发丝线、反白悬停 */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  border:var(--line) solid var(--rule-strong);
+  background:transparent;color:var(--ink);
+  padding:7px 13px;border-radius:2px;font-size:12.5px;cursor:pointer;
+  transition:background-color .14s ease,color .14s ease,border-color .14s ease;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--paper-sunk);border-color:var(--ink);color:var(--ink)}
+.btn:active{background:var(--ink);border-color:var(--ink);color:var(--paper-raised)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:var(--paper-raised)}
+.btn.primary:hover{background:var(--ink-2);border-color:var(--ink-2);color:var(--paper-raised)}
+.btn.ghost{border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{background:var(--paper-sunk);color:var(--ink);border-color:transparent}
+.btn.sm{padding:5px 10px;font-size:11.5px}
+.btn[disabled]{color:var(--faint);border-color:var(--rule);cursor:not-allowed;background:transparent}
+.btn-group{display:flex;align-items:center;gap:0;flex-wrap:wrap}
+.btn-group .btn{border-right-width:0}
+.btn-group .btn:last-child{border-right-width:var(--line)}
+
+/* ---------- 版式 ---------- */
+.layout{
+  display:grid;grid-template-columns:340px minmax(0,1fr);
+  gap:calc(var(--gutter) * 1.4);
+  padding:var(--gutter) var(--gutter) 72px;
+  max-width:var(--measure);margin:0 auto;align-items:start;
+}
+@media (max-width:1100px){ .layout{grid-template-columns:1fr} .side{position:static !important} }
+
+.side{position:sticky;top:74px;display:flex;flex-direction:column;gap:34px}
+
+/* 分区标题：宋体 + 发丝线，不用卡片 */
+.card{background:transparent;border:0;border-radius:0;box-shadow:none}
+.card-h{
+  display:flex;align-items:baseline;gap:10px;
+  padding:0 0 9px;border-bottom:var(--line) solid var(--ink);
+}
+.card-h h2{
+  margin:0;font-family:var(--serif);font-size:16px;font-weight:600;letter-spacing:.04em;
+}
+.card-h .sub{margin-left:auto;font-size:11px;color:var(--muted);font-family:var(--sans)}
+.card-b{padding:var(--space-md) 0 0}
+
+/* ---------- 表单 ---------- */
+label.f{
+  display:block;font-size:11.5px;color:var(--muted);margin:18px 0 5px;font-weight:400;
+  letter-spacing:.02em;
+}
+label.f:first-child{margin-top:0}
+label.f span{color:var(--faint);margin-left:6px}
+.input,select.input{
+  width:100%;padding:7px 0;border:0;border-bottom:var(--line) solid var(--rule);
+  border-radius:0;font-size:14px;font-family:var(--sans);
+  background:transparent;color:var(--ink);outline:none;
+  transition:border-color .14s ease;
+  appearance:none;
+}
+select.input{
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 10px) 52%,calc(100% - 5px) 52%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  padding-right:22px;
+}
+.input::placeholder{color:var(--faint)}
+input[type="date"]::-webkit-calendar-picker-indicator{opacity:.4;filter:grayscale(1);cursor:pointer}
+input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:.8}
+.input:hover{border-bottom-color:var(--rule-strong)}
+.input:focus,.input:focus-visible{border-bottom-color:var(--accent);outline:none;box-shadow:0 1px 0 0 var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.hint{font-size:11px;color:var(--faint);margin-top:var(--space-xs);line-height:1.65}
+
+/* 偏好多选：文字式，选中加朱砂下划线 */
+.chips{display:flex;flex-wrap:wrap;gap:6px var(--space-md);padding-top:var(--space-3xs)}
+.chip{
+  padding:var(--space-3xs) 0;border:0;border-bottom:var(--line) dashed var(--rule-strong);
+  background:transparent;font-size:13px;cursor:pointer;color:var(--muted);
+  transition:color .14s ease,border-color .14s ease;user-select:none;
+}
+.chip:hover{color:var(--ink);border-bottom-color:var(--ink)}
+.chip.on{color:var(--accent);border-bottom:var(--line) solid var(--accent);font-weight:500}
+
+/* 分段：文字 + 下划线 */
+.seg{display:flex;gap:18px;border-bottom:var(--line) solid var(--rule);padding-bottom:0}
+.seg button{
+  border:0;background:transparent;padding:3px 0 7px;font-size:13px;color:var(--muted);
+  cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:color .14s ease,border-color .14s ease;
+}
+.seg button:hover{color:var(--ink)}
+.seg button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:500}
+
+.switch{display:flex;align-items:flex-start;gap:9px;font-size:12px;color:var(--ink-2);margin-top:20px;cursor:pointer;line-height:1.55}
+.switch input{width:13px;height:13px;margin-top:var(--space-3xs);accent-color:var(--accent)}
+
+/* 生成按钮单独一片纸 */
+.plan-cta{margin-top:var(--space-lg);padding-top:18px;border-top:var(--line) solid var(--rule)}
+.plan-cta .btn{
+  width:100%;justify-content:center;padding:var(--space-sm);font-size:13.5px;letter-spacing:0;
+}
+
+/* ---------- 历史 ---------- */
+.hist{display:flex;flex-direction:column}
+.hist-item{
+  display:flex;gap:var(--space-sm);align-items:baseline;
+  padding:11px 0;border-bottom:var(--line) solid var(--rule);
+  cursor:pointer;transition:color .14s ease;
+}
+.hist-item:first-child{padding-top:var(--space-2xs)}
+.hist-item:hover{color:var(--accent)}
+.hist-item:hover .m{color:var(--accent)}
+.hist-item .t{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--serif);letter-spacing:.02em}
+.hist-item .m{font-size:11px;color:var(--faint);margin-top:var(--space-3xs);transition:color .14s ease}
+.hist-item .amt{
+  margin-left:auto;font-size:13px;color:var(--ink);white-space:nowrap;
+  font-variant-numeric:tabular-nums;font-weight:500;
+}
+.empty{font-size:12px;color:var(--faint);padding:10px 0;font-style:normal}
+
+/* ---------- 主区 ---------- */
+.main{min-width:0;display:flex;flex-direction:column;gap:26px}
+
+/* 工具栏：标题左、操作右，中间一条线 */
+.toolbar{
+  display:flex;align-items:flex-end;gap:var(--space-md);flex-wrap:wrap;
+  padding:0 0 var(--space-sm);border-bottom:var(--line) solid var(--ink);
+}
+.toolbar .title{
+  font-family:var(--serif);font-size:27px;font-weight:600;line-height:1.25;
+  letter-spacing:.01em;margin:0;
+}
+.toolbar .meta{font-size:11.5px;color:var(--muted);margin-top:var(--space-2xs);letter-spacing:.02em}
+.srcflag{
+  font-size:11px;color:var(--muted);white-space:nowrap;
+  padding-left:var(--space-sm);border-left:var(--line) solid var(--rule);
+}
+.srcflag.llm{color:var(--accent)}
+
+/* 指标条：四栏，竖线分隔，无卡片 */
+.kpis{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:var(--line) solid var(--rule);border-bottom:var(--line) solid var(--rule);
+}
+.kpi{padding:var(--space-md) 20px 15px;border-left:var(--line) solid var(--rule)}
+.kpi:first-child{border-left:0;padding-left:0}
+.kpi b{
+  display:block;font-family:var(--serif);font-size:27px;font-weight:600;
+  letter-spacing:-.01em;line-height:1.15;font-variant-numeric:tabular-nums;
+}
+.kpi span{font-size:11px;color:var(--muted);display:block;margin-top:5px;letter-spacing:.02em}
+.kpi.accent b{color:var(--accent)}
+@media (max-width:700px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .kpi:nth-child(3){border-left:0;padding-left:0;border-top:var(--line) solid var(--rule)}
+  .kpi:nth-child(4){border-top:var(--line) solid var(--rule)}
+}
+
+
+/* 地图：像杂志里的一张图版，细框 + 图注 */
+.map-wrap{position:relative;border:var(--line) solid var(--rule-strong);background:var(--paper-sunk)}
+#map{height:470px;width:100%;background:var(--paper-sunk)}
+/* 底图在 canvas 上，标记在 overlays 层：只给 canvas 去色，标记仍是朱砂 */
+#map canvas{filter:grayscale(.88) contrast(.94) brightness(1.06) sepia(.04)}
+@media (max-width:1100px){ #map{height:380px} }
+.map-foot{display:flex;align-items:center;gap:18px;padding:10px 0 0}
+.map-foot .legend{flex:1;min-width:0;padding:0}
+.map-bar{display:flex;gap:0;border:var(--line) solid var(--rule-strong);flex:none}
+.map-bar .btn{border:0;border-left:var(--line) solid var(--rule);border-radius:0;padding:5px 10px;background:transparent;font-size:11px}
+.map-bar .btn:first-child{border-left:0}
+.map-bar .btn:hover{background:var(--paper-sunk);color:var(--ink)}
+.map-bar .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--paper-raised)}
+.map-note{
+  position:absolute;right:0;bottom:0;z-index:500;
+  font-size:11px;color:var(--ink-2);letter-spacing:.02em;
+  background:color-mix(in srgb,var(--paper-raised) 92%,transparent);
+  padding:3px 9px;border-left:var(--line) solid var(--rule);border-top:var(--line) solid var(--rule);
+}
+.legend{
+  display:flex;gap:18px;flex-wrap:wrap;
+  font-size:11px;color:var(--muted);letter-spacing:.02em;
+}
+.legend i{width:8px;height:8px;display:inline-block;margin-right:6px;vertical-align:0}
+
+/* ---------- 每日行程：编号 + 时间轴 ---------- */
+.day{
+  background:transparent;border:0;border-radius:0;box-shadow:none;
+  border-top:var(--line) solid var(--ink);padding-top:0;
+}
+.day + .day{margin-top:34px}
+.day-h{display:flex;align-items:flex-start;gap:var(--space-md);padding:14px 0 var(--space-sm);border-bottom:var(--line) solid var(--rule);background:transparent}
+.day-num{
+  width:auto;height:auto;border-radius:0;display:block;flex:none;
+  font-family:var(--serif);font-size:42px;font-weight:400;line-height:1;
+  color:var(--accent);letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  padding-top:var(--space-3xs);min-width:56px;
+}
+.day-h .t{font-family:var(--serif);font-size:19px;font-weight:600;letter-spacing:.02em;line-height:1.35}
+.day-h .d{font-size:11px;color:var(--faint);letter-spacing:0;margin-top:3px;font-variant-numeric:tabular-nums}
+.day-h .bar{margin-left:auto;display:flex;gap:0;align-self:center}
+.warn{
+  margin:var(--space-sm) 0 0;padding:var(--space-xs) var(--space-sm);font-size:11.5px;color:var(--warn);
+  background:var(--warn-wash);border-left:2px solid var(--warn);letter-spacing:.02em;
+}
+
+.items{padding:0}
+.item{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:11px 0;border-radius:0;position:relative;
+  border-bottom:var(--line) dotted var(--rule);
+  transition:background-color .14s ease;
+}
+.item .time{flex:0 0 56px;font-family:var(--mono);font-size:12px;color:var(--ink);padding-top:2px;
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.item:hover{background:color-mix(in srgb,var(--paper-raised) 70%,transparent)}
+.item .time{
+  font-family:var(--mono);font-size:12px;color:var(--ink);padding-top:var(--space-3xs);
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em;
+}
+.item .time small{
+  display:block;font-family:var(--sans);font-size:11px;color:var(--faint);margin-top:3px;letter-spacing:.02em;
+}
+.item .content{flex:1 1 auto;min-width:0;display:flex;gap:12px;align-items:flex-start}
+
+.item .ibody{flex:1 1 auto;min-width:0;width:0}
+.item .ibody > *{width:100%}
+.item .name{width:100% !important}
+.item .thumb{flex:0 0 84px;width:84px;height:63px;object-fit:cover;border:2px solid var(--ink);background:var(--paper-sunk)}
+.item .addr{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;padding-top:5px;border-top:1px solid var(--rule);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .name{display:block;font-size:14px;font-weight:500;line-height:1.5}
+
+.item .name .k{
+  display:inline-block;vertical-align:baseline;margin-right:8px;
+  font-size:10px;padding:0;border-radius:0;font-weight:500;letter-spacing:0;
+  color:var(--faint);text-transform:none;
+}
+.k.spot{color:var(--accent);background:none}
+.k.meal{color:var(--muted);background:none}
+.k.hotel{color:var(--muted);background:none}
+.item .note{font-size:12.5px;color:var(--muted);margin-top:var(--space-2xs);line-height:1.6}
+.item .tags{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.item .tag{font-size:11px;padding:0;border-radius:0;background:none;color:var(--faint);letter-spacing:.02em}
+.item .price{font-size:12.5px;color:var(--ink-2);margin-top:6px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.item .tr{
+  font-size:11px;color:var(--faint);margin-top:6px;display:flex;gap:6px;align-items:baseline;
+  letter-spacing:.02em;font-variant-numeric:tabular-nums;
+}
+.item .acts{
+  position:absolute;right:0;top:10px;display:flex;gap:0;opacity:0;
+  transition:opacity .14s ease;background:var(--paper);
+}
+.item:hover .acts,.item:focus-within .acts{opacity:1}
+.iconbtn{
+  width:24px;height:24px;border-radius:0;border:0;border-left:var(--line) solid var(--rule);
+  background:transparent;cursor:pointer;display:grid;place-items:center;
+  font-size:11px;color:var(--muted);transition:color .12s ease,background-color .12s ease;
+}
+.iconbtn:first-child{border-left:0}
+.iconbtn:hover{color:var(--ink);background:var(--paper-sunk)}
+.iconbtn.danger:hover{color:var(--accent);background:var(--accent-wash)}
+.item.locked{background:color-mix(in srgb,var(--accent-wash) 45%,transparent)}
+.item.locked .name::after{
+  content:"锁定";font-family:var(--sans);font-size:9px;color:var(--accent);
+  border:var(--line) solid var(--accent);padding:0 var(--space-2xs);margin-left:var(--space-3xs);letter-spacing:0;
+}
+.item.shortened .time small{color:var(--warn)}
+.tr-foot{display:flex;align-items:center;gap:10px;padding:10px 0 0}
+
+/* ---------- 预算：账本式 ---------- */
+.budget-total{display:flex;align-items:baseline;gap:var(--space-sm);padding-bottom:14px;border-bottom:var(--line) solid var(--rule)}
+.budget-total b{
+  font-family:var(--serif);font-size:38px;font-weight:600;line-height:1;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+}
+.budget-total span{font-size:11.5px;color:var(--muted);letter-spacing:.02em}
+.donut{display:flex;align-items:center;gap:18px;margin:var(--space-md) 0 6px}
+.donut svg{flex:none}
+.donut .list{flex:1;display:flex;flex-direction:column;gap:var(--space-xs)}
+.brow{display:flex;align-items:baseline;gap:9px;font-size:12px}
+.brow i{width:7px;height:7px;flex:none;transform:translateY(-1px)}
+.brow .l{color:var(--ink-2)}
+.brow .v{margin-left:auto;font-weight:500;font-variant-numeric:tabular-nums}
+.brow .p{width:38px;text-align:right;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.detail{border-top:var(--line) solid var(--rule);margin-top:14px;padding-top:var(--space-sm);display:flex;flex-direction:column;gap:7px;max-height:260px;overflow:auto}
+.drow{display:flex;gap:10px;font-size:12px;color:var(--ink-2);align-items:baseline}
+.drow .n{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.drow .a{color:var(--ink);font-variant-numeric:tabular-nums}
+.tips{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:tip}
+.tips li{
+  font-size:12px;color:var(--ink-2);line-height:1.65;padding-left:22px;position:relative;
+}
+.tips li::before{
+  counter-increment:tip;content:counter(tip,decimal-leading-zero);
+  position:absolute;left:0;top:0;font-family:var(--mono);font-size:10px;color:var(--accent);
+  letter-spacing:-.02em;
+}
+
+/* ---------- 加载 ---------- */
+.overlay{
+  position:fixed;inset:0;z-index:2000;background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(6px);display:none;place-items:center;
+}
+.overlay.on{display:grid}
+.loader{
+  width:min(400px,90vw);background:var(--paper-raised);border:var(--line) solid var(--ink);
+  border-radius:0;padding:30px 30px 26px;text-align:left;
+}
+.loader .ring{
+  width:22px;height:22px;margin:0 0 var(--space-md);border-radius:50%;
+  border:1.5px solid var(--rule);border-top-color:var(--accent);
+  animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ .loader .ring{animation:none;border-top-color:var(--accent)} }
+.loader b{font-family:var(--serif);font-size:17px;font-weight:600;display:block;margin-bottom:7px;letter-spacing:.02em}
+.loader p{margin:0;font-size:12px;color:var(--muted);min-height:32px;line-height:1.7}
+.loader .bar{height:2px;border-radius:0;background:var(--rule);overflow:hidden;margin-top:18px}
+.loader .bar i{display:block;height:100%;width:100%;transform:scaleX(.08);transform-origin:left center;background:var(--accent);transition:transform .6s steps(1)}
+
+/* ---------- 弹窗 ---------- */
+.modal{
+  position:fixed;inset:0;z-index:2100;display:none;place-items:center;
+  background:color-mix(in srgb,var(--ink) 34%,transparent);padding:20px;
+}
+.modal.on{display:grid}
+.modal .box{
+  width:min(660px,94vw);max-height:86vh;overflow:auto;background:var(--paper);
+  border:var(--line) solid var(--ink);border-radius:0;
+}
+.modal .box-h{
+  display:flex;align-items:center;gap:10px;padding:var(--space-md) 20px;
+  border-bottom:var(--line) solid var(--ink);background:var(--paper);
+}
+.modal .box-h h3{margin:0;font-family:var(--serif);font-size:17px;font-weight:600;letter-spacing:.03em}
+.modal .box-b{padding:18px 20px 22px}
+.modal .box-f{padding:0 20px 20px;display:flex;gap:9px;justify-content:flex-end}
+.poi-list{display:flex;flex-direction:column;margin-top:var(--space-md);max-height:340px;overflow:auto;border-top:var(--line) solid var(--rule)}
+.poi{
+  display:flex;gap:var(--space-sm);align-items:baseline;padding:11px 0;
+  border-bottom:var(--line) dotted var(--rule);
+  cursor:pointer;transition:color .12s ease;background:transparent;
+}
+.poi:hover{color:var(--accent)}
+.poi:hover .nm{color:var(--accent)}
+.poi.in{opacity:.4;cursor:not-allowed}
+.poi .nm{font-size:13.5px;font-weight:500;line-height:1.4}
+.poi .ds{font-size:11px;color:var(--faint);margin-top:var(--space-3xs)}
+.poi .rt{margin-left:auto;font-size:12px;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* ---------- 提示 ---------- */
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);z-index:3000;opacity:0;pointer-events:none;
+  background:var(--ink);color:var(--paper-raised);padding:10px 18px;border-radius:0;font-size:12px;
+  transition:opacity .2s ease,transform .2s ease;max-width:90vw;letter-spacing:.02em;
+}
+@media (prefers-reduced-motion:reduce){ .toast{transition:none} }
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:var(--accent-deep)}
+
+/* ---------- 移动端：重排而不是压缩 ---------- */
+@media (max-width:760px){
+  :root{--gutter:16px}
+  .topbar{padding:10px var(--gutter) 9px;gap:10px}
+  .brand h1{font-size:15px}
+  .brand p{display:none}
+  .logo{width:22px;height:22px;font-size:11px}
+  .pill{font-size:10px}
+  #mapProviderPill{display:none}
+  .layout{padding:20px var(--gutter) 48px;gap:26px}
+  .side{order:2}
+  .main{order:1}
+  .toolbar .title{font-size:21px}
+  .btn-group{width:100%}
+  .kpis{grid-template-columns:1fr 1fr}
+  .kpi{padding:13px var(--space-sm)}
+  .kpi b{font-size:22px}
+  #map{height:300px}
+  .hero h2{font-size:24px;line-height:1.45}
+  .hero p{font-size:13px}
+  .hero{gap:26px}
+  .day-num{font-size:32px;min-width:42px}
+  .day-h .t{font-size:16px}
+  .item{grid-template-columns:54px 1fr;gap:10px}
+  .item .thumb{width:64px;height:48px}
+  .item .time{font-size:11px}
+  .budget-total b{font-size:30px}
+  .donut{flex-direction:column;align-items:flex-start;gap:var(--space-sm)}
+  .donut svg{width:84px;height:84px}
+  .legend{font-size:9.5px;gap:10px}
+  .map-bar .btn{padding:5px var(--space-xs);font-size:10.5px}
+  .plan-cta .btn{padding:11px}
+}
+
+/* ---------- Wayfind：等宽 / 直角 / 2px 硬边 / steps(1) ---------- */
+body{font-family:var(--mono);font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.brand h1,.hero h2,.toolbar .title,.card-h h2,.day-h .t,.day-num,.kpi b,.budget-total b{
+  font-family:var(--mono);font-weight:800;letter-spacing:-0.03em;line-height:1.02;
+}
+.hero h2{line-height:1.06}
+.toolbar .title{line-height:1.05}
+.btn{border-width:2px;border-radius:0;font-weight:500;letter-spacing:0}
+.btn.primary{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-accent-ink)}
+.btn.primary:hover{background:var(--accent-deep);border-color:var(--accent-deep);color:var(--color-accent-ink)}
+.btn:hover{background:var(--paper-sunk);border-color:var(--ink);color:var(--ink)}
+.btn:active{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.input,.seg,.chips .chip,.map-wrap,.map-bar,.modal .box{border-radius:0}
+.input{border-bottom-width:2px}
+.input:focus,.input:focus-visible{box-shadow:none;border-bottom-color:var(--color-accent)}
+.chip.on{color:var(--color-accent);border-bottom:2px solid var(--color-accent)}
+.seg button.on{border-bottom-color:var(--color-accent)}
+.switch input{accent-color:var(--color-accent)}
+.map-wrap{border:2px solid var(--color-ink)}
+.map-bar{border:2px solid var(--color-ink-rule)}
+.map-bar .btn{border-left-width:2px}
+.kpi{border-left-width:1px}
+.day,.toolbar,.card-h{border-color:var(--color-ink)}
+.day-num{color:var(--color-accent)}
+.item .name .k{letter-spacing:0.02em}
+.srcflag.llm{color:var(--color-accent)}
+.tips li::before{color:var(--color-accent)}
+.brow i{border-radius:0}
+.iconbtn{font-weight:500}
+.toast{border-radius:0;font-family:var(--mono)}
+.loader .bar{border-radius:0;height:3px}
+.loader .bar i{background:var(--color-accent);transition:transform var(--dur-short) steps(1)}
+.modal .box{border-width:2px}
+.poi .nm{font-weight:500}
+/* 动效：进出场用 steps(1)，不插值 */
+.btn,.chip,.seg button,.hist-item,.poi,.iconbtn{transition-duration:var(--dur-micro);transition-timing-function:steps(1)}
+@media (prefers-reduced-motion:reduce){.btn,.chip,.seg button,.hist-item,.poi,.iconbtn{transition:none}}
+
+/* ---------- 灯箱 ---------- */
+.lightbox{
+  position:fixed;inset:0;z-index:2500;display:none;place-items:center;
+  padding:48px;background:var(--color-scrim);cursor:zoom-out;
+}
+.lightbox.on{display:grid}
+.lightbox img{
+  max-width:min(1100px,90vw);max-height:80vh;object-fit:contain;
+  border:2px solid var(--color-paper-3);background:var(--color-paper-3);
+}
+.lightbox-cap{
+  position:absolute;bottom:24px;left:0;right:0;text-align:center;
+  color:var(--color-paper-3);font-size:12px;letter-spacing:0;opacity:.8;
+}
+.lightbox-close{
+  position:absolute;top:20px;right:24px;width:36px;height:36px;
+  border:2px solid var(--color-paper-3);background:transparent;color:var(--color-paper-3);
+  font:800 14px/1 var(--mono);cursor:pointer;border-radius:0;
+}
+.lightbox-close:hover{background:var(--color-paper-3);color:var(--color-ink)}
+.item .thumb{cursor:zoom-in}
+
+/* ---------- 工作区：导航 | 内容 | 地图 ---------- */
+/* 结果区必须是普通块流：三块（工具栏/KPI/工作区）纵向堆叠，各自撑满 */
+#result{display:block}
+#result > .toolbar, #result > .kpis, #result > .workspace{width:100%}
+#result > * + *{margin-top:26px}
+
+.workspace{
+  display:grid;
+  grid-template-columns:124px minmax(0,1fr) minmax(0,1.22fr);
+  gap:36px;align-items:start;
+}
+@media (max-width:1320px){ .workspace{grid-template-columns:120px minmax(0,1fr)} .workspace-map{grid-column:1 / -1} }
+@media (max-width:980px){ .workspace{grid-template-columns:1fr} .workspace-nav{display:none} }
+
+.workspace-nav{
+  position:sticky;top:80px;z-index:5;background:var(--paper);display:flex;flex-direction:column;
+  border-top:2px solid var(--ink);
+}
+.workspace-nav .nav-item{
+  padding:9px 0;border-bottom:1px solid var(--rule);
+  font-size:12.5px;color:var(--muted);border-left:0;text-decoration:none;
+  transition:color var(--dur-micro) steps(1);
+}
+.workspace-nav .nav-item:hover{color:var(--ink)}
+.workspace-nav .nav-item.on{color:var(--accent);font-weight:500}
+.workspace-nav .nav-item.on::before{content:"— ";color:var(--accent)}
+
+.workspace-main{display:flex;flex-direction:column;gap:34px;min-width:360px}
+.workspace-map{position:sticky;top:80px;display:flex;flex-direction:column;min-width:0}
+.workspace-map .map-wrap{border:2px solid var(--color-ink)}
+#map{height:min(72vh,700px);width:100%}
+@media (max-width:980px){ #map{height:420px} }
+
+/* 概览 */
+.ov-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:2px solid var(--ink)}
+.ov-grid > div{padding:14px;border-right:1px solid var(--rule)}
+.ov-grid > div:last-child{border-right:0}
+.ov-grid span{display:block;font-size:11px;color:var(--muted)}
+.ov-grid b{display:block;margin-top:6px;font-size:14px;font-weight:800;letter-spacing:-.02em;line-height:1.35}
+.ov-note{margin:14px 0 0;font-size:12px;color:var(--muted);line-height:1.7}
+#tips{display:none}   /* 概览里保留空位给旧逻辑，实际贴士在下面 */
+#tips.tips-visible{display:flex;margin-top:14px;gap:8px}
+
+/* 预算：2×2 卡片 + 总计条 */
+.budget-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid var(--ink);border-bottom:0}
+.budget-grid .bcard{
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:14px;border-right:1px solid var(--rule);border-bottom:2px solid var(--ink);
+}
+.budget-grid .bcard:nth-child(2n){border-right:0}
+.budget-grid .bcard span{font-size:11px;color:var(--muted)}
+.budget-grid .bcard b{margin-top:8px;font-size:20px;font-weight:800;letter-spacing:-.02em}
+.budget-bar{
+  display:flex;align-items:baseline;gap:14px;
+  border:2px solid var(--ink);padding:13px 14px;
+  background:var(--ink);color:var(--color-paper-3);
+}
+.budget-bar span:first-child{font-size:11px;opacity:.75}
+.budget-bar b{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-left:auto}
+.budget-bar span:last-child{font-size:11px;opacity:.75}
+
+/* 每日：折叠面板 */
+.day{border-top:2px solid var(--ink);border-bottom:1px solid var(--rule)}
+.day + .day{border-top:0}
+.day > summary{
+  display:flex;align-items:baseline;gap:14px;padding:13px 0;
+  cursor:pointer;list-style:none;
+}
+.day > summary::-webkit-details-marker{display:none}
+.day > summary .dnum{font-size:26px;font-weight:800;color:var(--accent);letter-spacing:-.03em;min-width:48px}
+.day > summary .dtxt{font-size:14px;font-weight:500}
+.day > summary .dmeta{margin-left:auto;font-size:11px;color:var(--muted)}
+.day > summary .dchev{font-size:11px;color:var(--muted);transition:transform var(--dur-micro) steps(1)}
+.day[open] > summary .dchev{transform:rotate(90deg)}
+.day .items{padding-bottom:8px}
+
+
+/* ---------- 首页 ---------- */
+.home{max-width:1180px;margin:0 auto;padding:56px var(--gutter) 96px}
+.home-head{max-width:760px;margin-bottom:48px}
+.home-head h1{
+  font-family:var(--mono);font-size:clamp(26px,3.2vw,38px);font-weight:800;
+  line-height:1.22;letter-spacing:-.03em;margin:0 0 18px;
+}
+.home-head p{margin:0;font-size:14px;color:var(--muted);line-height:1.85;max-width:34em}
+.home-body{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:64px;align-items:start}
+@media (max-width:980px){ .home-body{grid-template-columns:1fr;gap:44px} }
+.home-side{display:flex;flex-direction:column;gap:40px;min-width:0}
+
+.steps{display:flex;flex-direction:column;border-top:2px solid var(--ink)}
+.steps .step{
+  display:grid;grid-template-columns:42px minmax(0,1fr);gap:14px;align-items:baseline;
+  padding:16px 0;border:0;border-bottom:1px solid var(--rule);
+  border-radius:0;text-align:left;background:transparent;
+}
+.steps .step b{color:var(--accent);font-weight:800;font-size:13px}
+.steps .step em{font-style:normal;display:block;font-weight:500;margin-bottom:3px;font-size:14px}
+.steps .step span{font-size:11.5px;color:var(--muted);line-height:1.6}
+.steps .step div{min-width:0}
+
+/* ---------- 结果页 ---------- */
+.result-view{max-width:1680px;margin:0 auto;padding:18px var(--gutter) 80px}
+.result-bar{display:flex;align-items:center;gap:12px;padding:6px 0 20px}
+.result-inner{display:flex;flex-direction:column;gap:26px}
+
+.hidden{display:none !important}
+.skel{color:var(--faint);font-size:12px;padding:var(--space-sm) 0}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"></div>
+    <div>
+      <h1>智能旅行助手</h1>
+    </div>
+    <p>行程　地图　预算</p>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill" id="mapProviderPill" title="当前底图服务商">地图加载中</span>
+  <span class="pill" id="modelPill"><span class="dot"></span><span id="modelText">检测模型中…</span></span>
+  <button class="btn ghost sm" id="btnRefresh" title="重新开始">新建</button>
+</div>
+
+<!-- 首页 -->
+<div class="home" id="home">
+  <div class="home-head">
+    <h1>填写条件，<br>生成一份能直接用的行程。</h1>
+    <p>景点按地理位置择优排布，时间轴带交通耗时，预算逐项拆分。生成后可以随意增删调整，地图与费用会实时同步。</p>
+  </div>
+  <div class="home-body">
+    <div class="home-form">
+    <section>
+      <div class="card-h"><h2>行程条件</h2><span class="sub">约 30~60 秒</span></div>
+      <div class="card-b">
+        <label class="f">目的地</label>
+        <select class="input" id="fCity"></select>
+
+        <div class="row2">
+          <div>
+            <label class="f">出发日期</label>
+            <input class="input" type="date" id="fDate">
+          </div>
+          <div>
+            <label class="f">天数</label>
+            <select class="input" id="fDays">
+              <option value="1">1 天</option><option value="2">2 天</option>
+              <option value="3" selected>3 天</option><option value="4">4 天</option>
+              <option value="5">5 天</option><option value="6">6 天</option><option value="7">7 天</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="f">偏好 <span>可多选</span></label>
+        <div class="chips" id="fStyles"></div>
+
+        <label class="f">节奏</label>
+        <div class="seg" id="fPace"></div>
+        <div class="hint" id="paceHint"></div>
+
+        <label class="f">住宿档次</label>
+        <div class="seg" id="fTier"></div>
+
+        <div class="row2">
+          <div>
+            <label class="f">成人</label>
+            <select class="input" id="fAdults"></select>
+          </div>
+          <div>
+            <label class="f">儿童</label>
+            <select class="input" id="fChildren"></select>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div>
+            <label class="f">出发地 <span>可选</span></label>
+            <input class="input" id="fOrigin" placeholder="如：上海">
+          </div>
+          <div>
+            <label class="f">预算上限 <span>可选</span></label>
+            <input class="input" id="fBudget" type="number" min="0" step="100" placeholder="元">
+          </div>
+        </div>
+
+        <label class="f">额外要求 <span>可选</span></label>
+        <input class="input" id="fPref" placeholder="如：带老人、不想走太多、想吃地道小吃">
+
+        <label class="switch">
+          <input type="checkbox" id="fRule">
+          <span>本地规则模式：不调用大模型，即时出结果</span>
+        </label>
+
+        <div class="plan-cta">
+          <button class="btn primary" id="btnPlan">生成行程</button>
+        </div>
+        <div class="hint" id="genHint"></div>
+      </div>
+    </section>
+    </div>
+    <aside class="home-side">
+      <div class="steps">
+        <div class="step"><b>01</b><div><em>选条件</em><span>目的地、日期、偏好、节奏、人数、预算</span></div></div>
+        <div class="step"><b>02</b><div><em>生成</em><span>大模型选点排程，本地库校准坐标与票价</span></div></div>
+        <div class="step"><b>03</b><div><em>调整导出</em><span>增删景点，导出 PDF、长图或打印</span></div></div>
+      </div>
+    <section>
+      <div class="card-h"><h2>历史行程</h2><span class="sub" id="histCount"></span></div>
+      <div class="card-b"><div class="hist" id="hist"><div class="empty">暂无记录</div></div></div>
+    </section>
+    </aside>
+  </div>
+</div>
+
+  <main class="result-view hidden" id="result">
+    <div class="result-bar">
+      <button class="btn sm ghost" id="btnBack">← 返回首页</button>
+      <div class="spacer"></div>
+      <span class="srcflag" id="tSrcTop"></span>
+    </div>
+    <div class="result-inner">
+      <div class="toolbar">
+        <div>
+          <div class="title" id="tTitle">未命名行程</div>
+          <div class="meta" id="tMeta">等待生成</div>
+        </div>
+        <span class="srcflag" id="tSrc"></span>
+        <div class="spacer" style="flex:1"></div>
+        <div class="btn-group">
+          <button class="btn sm" id="btnAdd">添加</button>
+          <button class="btn sm" id="btnReplan" title="按左侧条件重新生成，锁定项保留">重排</button>
+          <button class="btn sm" id="btnAddDay">加一天</button>
+          <div style="position:relative">
+            <button class="btn sm" id="btnExport">导出 ▾</button>
+            <div id="exportMenu" class="hidden"
+                 style="position:absolute;right:0;top:31px;z-index:1200;min-width:168px;
+                        background:var(--paper-raised);border:var(--line) solid var(--ink);padding:5px 0">
+              <button class="btn ghost sm" data-exp="pdf" style="width:100%;justify-content:flex-start;padding:7px 14px">导出 PDF</button>
+              <button class="btn ghost sm" data-exp="png" style="width:100%;justify-content:flex-start;padding:7px 14px">行程长图</button>
+              <button class="btn ghost sm" data-exp="map" style="width:100%;justify-content:flex-start;padding:7px 14px">地图图片</button>
+              <button class="btn ghost sm" data-exp="print" style="width:100%;justify-content:flex-start;padding:7px 14px">打印 / 存为 PDF</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="workspace">
+        <nav class="workspace-nav" id="workspaceNav">
+          <a href="#sec-overview" class="nav-item on">行程概览</a>
+          <a href="#sec-budget" class="nav-item">预算明细</a>
+          <a href="#sec-map" class="nav-item">景点地图</a>
+          <a href="#sec-days" class="nav-item">每日行程</a>
+          <a href="#sec-tips" class="nav-item">实用贴士</a>
+        </nav>
+
+        <div class="workspace-main">
+          <section id="sec-overview" class="sec">
+            <div class="card-h"><h2>行程概览</h2></div>
+            <div class="card-b">
+              <div class="ov-grid">
+                <div><span>日期</span><b id="ovDate">等待生成</b></div>
+                <div><span>人数</span><b id="ovParty">—</b></div>
+                <div><span>预估总费用</span><b id="ovBudget">—</b></div>
+              </div>
+              <p class="ov-note" id="ovNote"></p>
+              <ul class="tips" id="tips"></ul>
+            </div>
+          </section>
+
+          <section id="sec-budget" class="sec">
+            <div class="card-h"><h2>预算明细</h2><span class="sub" id="bMeta"></span></div>
+            <div class="card-b">
+              <div class="budget-grid" id="budgetGrid"></div>
+              <div class="budget-bar">
+                <span>预估总费用</span>
+                <b id="bTotal">¥0</b>
+                <span id="bPer">人均 ¥0</span>
+              </div>
+              <div class="detail" id="bDetail"></div>
+            </div>
+          </section>
+
+          <section id="sec-days" class="sec">
+            <div class="card-h"><h2>每日行程</h2></div>
+            <div id="days"></div>
+            <div style="padding-top:14px">
+              <button class="btn" id="btnAddDay2">在后面加一天</button>
+            </div>
+          </section>
+
+          <section id="sec-tips" class="sec">
+            <div class="card-h"><h2>出行贴士</h2></div>
+            <div class="card-b"><ul class="tips" id="tipsList"></ul></div>
+          </section>
+        </div>
+
+        <aside id="sec-map" class="workspace-map">
+          <div class="map-wrap">
+            <div id="map"></div>
+            <div class="map-note" id="mapNote"></div>
+          </div>
+          <div class="map-foot">
+            <div class="legend" id="legend"></div>
+            <div class="map-bar">
+              <button class="btn sm" id="btnFit">全览</button>
+              <button class="btn sm" id="btnLayer">底图：纸</button>
+              <button class="btn sm" id="btnMeals" title="在地图上显示或隐藏餐饮点">餐饮</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+<!-- 加载遮罩 -->
+<div class="overlay" id="overlay">
+  <div class="loader">
+    <div class="ring"></div>
+    <b id="loadTitle">正在规划行程…</b>
+    <p id="loadMsg">正在理解你的偏好</p>
+    <div class="bar"><i id="loadBar"></i></div>
+  </div>
+</div>
+
+<!-- 添加 POI 弹窗 -->
+<div class="modal" id="poiModal">
+  <div class="box">
+    <div class="box-h">
+      <h3 id="poiTitle">添加景点</h3>
+      <div class="spacer" style="flex:1"></div>
+      <button class="iconbtn" data-close="poiModal" title="关闭">✕</button>
+    </div>
+    <div class="box-b">
+      <div class="row2" style="gap:20px">
+        <select class="input" id="poiDay"></select>
+        <select class="input" id="poiKind">
+          <option value="spot">景点</option>
+          <option value="meal">餐厅</option>
+          <option value="hotel">酒店</option>
+        </select>
+      </div>
+      <input class="input" id="poiSearch" placeholder="搜索名称、菜系或标签" style="margin-top:14px">
+      <div class="poi-list" id="poiList"></div>
+    </div>
+    <div class="box-f"><button class="btn" data-close="poiModal">取消</button></div>
+  </div>
+</div>
+
+
+<div class="lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-label="查看大图">
+  <button class="lightbox-close" id="lightboxClose" aria-label="关闭">✕</button>
+  <img id="lightboxImg" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+  <div class="lightbox-cap" id="lightboxCap"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!-- pages/result/result.wxml -->
+<view class="result" wx:if="{{!loading && trip}}">
+
+  <view class="bar">
+    <view class="back" bindtap="onBack">← 返回</view>
+    <view class="src">{{trip.source === 'llm' ? '大模型生成' : '本地规则'}}</view>
+  </view>
+
+  <view class="upbar" wx:if="{{upgrading}}">
+    <view class="updot"></view>
+    <text>AI 正在重新规划，当前是规则版，稍后自动替换</text>
+  </view>
+  <view class="upbar fail" wx:if="{{upgradeFailed}}">{{upgradeFailed}}（保留规则版）</view>
+
+  <view class="head">
+    <view class="title">{{trip.title}}</view>
+    <view class="meta">{{trip.city}}　{{trip.days[0].date}} 起　{{trip.days.length}} 天　{{trip.party.heads}} 人</view>
+  </view>
+
+  <!-- 指标条 -->
+  <view class="kpis">
+    <view class="kpi" wx:for="{{kpis}}" wx:key="l">
+      <view class="kv num">{{item.v}}</view>
+      <view class="kl">{{item.l}}</view>
+    </view>
+  </view>
+
+  <!-- 地图 -->
+  <view class="mapbox">
+    <map
+      class="map"
+      latitude="{{center.latitude}}"
+      longitude="{{center.longitude}}"
+      scale="{{scale}}"
+      markers="{{markers}}"
+      polyline="{{polylines}}"
+      show-location="{{false}}"
+      enable-zoom="{{true}}"
+      enable-scroll="{{true}}"
+      bindcallouttap="onCalloutTap">
+    </map>
+    <view class="mapnote">{{mapNote}}</view>
+  </view>
+
+  <!-- 每日行程 -->
+  <view class="sec">
+    <view class="sec-head"><view class="h">每日行程</view></view>
+
+    <view class="day" wx:for="{{trip.days}}" wx:key="index" wx:for-item="day">
+      <view class="day-h" data-index="{{day.index}}" bindtap="toggleDay">
+        <view class="dno">{{day.index < 10 ? '0' : ''}}{{day.index}}</view>
+        <view class="dmeta">
+          <view class="dtheme">{{day.theme}}</view>
+          <view class="dtime num">{{day.date}} {{day.weekday}}　{{day.start_time}}–{{day.end_time}}</view>
+        </view>
+        <view class="darrow">{{openDays[day.index] ? '▾' : '▸'}}</view>
+      </view>
+
+      <view class="items" wx:if="{{openDays[day.index]}}">
+        <view class="item" wx:for="{{day.items}}" wx:key="key" wx:for-item="it">
+          <view class="t num">{{it.time}}</view>
+          <view class="c">
+            <view class="nm">
+              <text class="k {{it.kind}}">{{it.kind === 'spot' ? '景点' : (it.kind === 'meal' ? '餐饮' : '酒店')}}</text>
+              <text>{{it.name}}</text>
+            </view>
+            <view class="note" wx:if="{{it.note}}">{{it.note}}</view>
+            <view class="p num" wx:if="{{it.kind === 'spot'}}">门票 ¥{{it.ticket}}</view>
+            <view class="p num" wx:if="{{it.kind === 'meal'}}">人均 ¥{{it.price}}</view>
+            <view class="tr num" wx:if="{{it.transfer}}">{{it.transfer.mode}} {{it.transfer.minutes}} 分钟</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 预算 -->
+  <view class="sec">
+    <view class="sec-head">
+      <view class="h">预算明细</view>
+      <view class="s">{{trip.party.heads}} 人</view>
+    </view>
+    <view class="bgrid">
+      <view class="bcell" wx:for="{{budgetCells}}" wx:key="label">
+        <view class="bl">{{item.label}}</view>
+        <view class="bv num">{{item.amount}}</view>
+      </view>
+    </view>
+    <view class="btotal">
+      <text class="btl">预估总费用</text>
+      <text class="btv num">¥{{trip.budget.total}}</text>
+      <text class="btp num">人均 ¥{{trip.budget.per_person}}</text>
+    </view>
+  </view>
+
+  <!-- 贴士 -->
+  <view class="sec" wx:if="{{trip.tips.length}}">
+    <view class="sec-head"><view class="h">出行贴士</view></view>
+    <view class="tip" wx:for="{{trip.tips}}" wx:key="*this">
+      <text class="tno">0{{index + 1}}</text>
+      <text class="ttx">{{item}}</text>
+    </view>
+  </view>
+
+</view>
+
+<view class="center" wx:if="{{loading}}">
+  <view class="spin"></view>
+  <view class="ct">载入行程…</view>
+</view>
+
+<view class="center" wx:if="{{!loading && error}}">
+  <view class="ct err">{{error}}</view>
+  <view class="btn-line" bindtap="onBack">回首页</view>
+</view>

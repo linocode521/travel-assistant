@@ -1,0 +1,33 @@
+# 依赖（本地开发时用 vendor/ 兜底，可不上传）
+vendor/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# 密钥与本地配置
+.env
+.env.local
+
+# 运行时数据
+data/trips.json
+data/poi_cache.json
+data/*.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 小程序本地配置
+miniprogram/project.private.config.json
+
+# 临时产物
+_*.mjs
+_*.png
+_demo-*.html
+.preview/
+
+# 第三方 skill 原文（版权原因不转载）
+design/skills-reference/

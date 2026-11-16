@@ -1,0 +1,125 @@
+/* app.wxss —— Neo-Brutalism
+ * 奶油底 + 墨黑粗边 + 硬投影 + 高饱和色块。零模糊、零渐变。
+ */
+page {
+  --paper: #FFF9E6;
+  --paper-2: #FFF3CC;
+  --ink: #0A0A0A;
+  --ink-soft: #2B2B2B;
+  --yell: #FFD803;
+  --pink: #FF6B9D;
+  --cyan: #00E5FC;
+  --lime: #A6FF4D;
+  --coral: #FF7B7B;
+  --teal: #47C2B0;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+view, text, button, input, picker { box-sizing: border-box; }
+
+/* 硬投影工具类 */
+.hard-1 { box-shadow: 6rpx 6rpx 0 var(--ink); }
+.hard-2 { box-shadow: 10rpx 10rpx 0 var(--ink); }
+
+/* 粗框卡片 */
+.card {
+  background: var(--paper);
+  border: 6rpx solid var(--ink);
+  border-radius: 12rpx;
+  box-shadow: 10rpx 10rpx 0 var(--ink);
+}
+
+/* 区块标题：墨底黄字横条 */
+.sec-head {
+  display: flex;
+  align-items: center;
+  background: var(--ink);
+  color: var(--yell);
+  padding: 14rpx 24rpx;
+  border-radius: 10rpx;
+  margin-bottom: 20rpx;
+}
+.sec-head .h {
+  font-size: 32rpx;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+.sec-head .s {
+  margin-left: auto;
+  font-size: 22rpx;
+  color: var(--paper);
+  font-weight: 700;
+}
+
+/* 小标签 */
+.badge {
+  display: inline-block;
+  padding: 4rpx 14rpx;
+  border: 3rpx solid var(--ink);
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  box-shadow: 4rpx 4rpx 0 var(--ink);
+}
+.badge.yell { background: var(--yell); }
+.badge.pink { background: var(--pink); }
+.badge.cyan { background: var(--cyan); }
+.badge.lime { background: var(--lime); }
+
+/* 主按钮 */
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 104rpx;
+  background: var(--yell);
+  color: var(--ink);
+  border: 6rpx solid var(--ink);
+  border-radius: 12rpx;
+  box-shadow: 10rpx 10rpx 0 var(--ink);
+  font-size: 34rpx;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  transition: transform 80ms linear, box-shadow 80ms linear;
+}
+.btn-primary:active {
+  transform: translate(10rpx, 10rpx);
+  box-shadow: 0 0 0 var(--ink);
+}
+.btn-primary[disabled] {
+  background: #D9D2BC;
+  color: #6B6656;
+  box-shadow: 10rpx 10rpx 0 #6B6656;
+  border-color: #6B6656;
+}
+
+/* 次按钮 */
+.btn-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 72rpx;
+  padding: 0 26rpx;
+  background: var(--paper);
+  color: var(--ink);
+  border: 5rpx solid var(--ink);
+  border-radius: 10rpx;
+  box-shadow: 6rpx 6rpx 0 var(--ink);
+  font-size: 26rpx;
+  font-weight: 800;
+  transition: transform 80ms linear, box-shadow 80ms linear;
+}
+.btn-line:active {
+  transform: translate(6rpx, 6rpx);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: #6B6656; }

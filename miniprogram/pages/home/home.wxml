@@ -1,0 +1,118 @@
+<!-- pages/home/home.wxml -->
+<view class="home">
+
+  <!-- 跑马灯 -->
+  <view class="marquee">
+    <view class="marquee-track">
+      <text>按经纬度排布</text><text>·</text><text>预算逐项拆分</text><text>·</text>
+      <text>时间轴带交通耗时</text><text>·</text><text>随时增删</text><text>·</text>
+      <text>按经纬度排布</text><text>·</text><text>预算逐项拆分</text><text>·</text>
+      <text>时间轴带交通耗时</text><text>·</text><text>随时增删</text><text>·</text>
+    </view>
+  </view>
+
+  <view class="hero">
+    <view class="stamp">AI 规划</view>
+    <view class="h1">填写条件，\n生成一份能直接用的行程。</view>
+    <view class="lead">景点按地理位置择优排布，时间轴带交通耗时，预算逐项拆分。</view>
+  </view>
+
+  <view wx:if="{{error}}" class="err">{{error}}</view>
+
+  <view class="form">
+
+    <view class="row">
+      <view class="field">
+        <view class="lb">目的地</view>
+        <picker mode="selector" range="{{cities}}" value="{{cityIndex}}" bindchange="onCity">
+          <view class="ipt">{{cities[cityIndex] || '加载中'}}<text class="arrow">▾</text></view>
+        </picker>
+      </view>
+    </view>
+
+    <view class="row two">
+      <view class="field">
+        <view class="lb">出发日期</view>
+        <picker mode="date" value="{{date}}" bindchange="onDate">
+          <view class="ipt num">{{date}}</view>
+        </picker>
+      </view>
+      <view class="field">
+        <view class="lb">天数</view>
+        <picker mode="selector" range="{{dayOptions}}" bindchange="onDays">
+          <view class="ipt num">{{days}} 天<text class="arrow">▾</text></view>
+        </picker>
+      </view>
+    </view>
+
+    <view class="field">
+      <view class="lb">偏好<text class="opt">可多选</text></view>
+      <view class="chips">
+        <view wx:for="{{styles}}" wx:key="key"
+              class="chip {{item.on ? 'on' : ''}}"
+              hover-class="chip-hover" hover-stay-time="80"
+              data-key="{{item.key}}" bindtap="toggleStyle">{{item.label}}</view>
+      </view>
+    </view>
+
+    <view class="field">
+      <view class="lb">节奏</view>
+      <view class="seg">
+        <view wx:for="{{paces}}" wx:key="key"
+              class="seg-i {{pace === item.key ? 'on' : ''}}"
+              data-key="{{item.key}}" bindtap="setPace">{{item.label}}</view>
+      </view>
+    </view>
+
+    <view class="field">
+      <view class="lb">住宿档次</view>
+      <view class="seg">
+        <view wx:for="{{tiers}}" wx:key="key"
+              class="seg-i {{tier === item.key ? 'on' : ''}}"
+              data-key="{{item.key}}" bindtap="setTier">{{item.label}}</view>
+      </view>
+    </view>
+
+    <view class="row two">
+      <view class="field">
+        <view class="lb">成人</view>
+        <picker mode="selector" range="{{adultsRange}}" bindchange="onAdults">
+          <view class="ipt num">{{adults}} 人<text class="arrow">▾</text></view>
+        </picker>
+      </view>
+      <view class="field">
+        <view class="lb">儿童</view>
+        <picker mode="selector" range="{{childrenRange}}" bindchange="onChildren">
+          <view class="ipt num">{{children}} 人<text class="arrow">▾</text></view>
+        </picker>
+      </view>
+    </view>
+
+    <view class="row two">
+      <view class="field">
+        <view class="lb">出发地<text class="opt">可选</text></view>
+        <input class="ipt" placeholder="如：上海" value="{{origin}}" bindinput="onOrigin" />
+      </view>
+      <view class="field">
+        <view class="lb">预算上限<text class="opt">可选</text></view>
+        <input class="ipt num" type="number" placeholder="元" value="{{budget}}" bindinput="onBudget" />
+      </view>
+    </view>
+
+    <view class="field">
+      <view class="lb">额外要求<text class="opt">可选</text></view>
+      <input class="ipt" placeholder="如：带老人、不想走太多" value="{{preference}}" bindinput="onPreference" />
+    </view>
+
+    <view class="switch-row">
+      <switch checked="{{ruleMode}}" bindchange="onRuleMode" color="#0A0A0A" />
+      <text>本地规则模式：不调用大模型，即时出结果</text>
+    </view>
+
+  </view>
+
+  <button class="btn-primary" bindtap="onGenerate" disabled="{{loading}}">
+    {{loading ? '生成中…' : '生成行程'}}
+  </button>
+
+</view>
